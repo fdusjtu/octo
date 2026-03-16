@@ -27,8 +27,8 @@ def shard_along_axis(x: Any, devices: Sequence[jax.Device], axis: int = 0) -> ja
         jax.sharding.Mesh(devices, "x"),
         jax.sharding.PartitionSpec(*([None] * axis + ["x"])),
     )
-    x = jax.tree_map(jnp.array, x)
-    return jax.tree_map(
+    x = jax.tree.map(jnp.array, x)
+    return jax.tree.map(
         lambda arr: jax.make_array_from_callback(
             arr.shape, sharding, lambda index: arr[index]
         ),
@@ -61,8 +61,8 @@ def replicate(x: Any, devices: Optional[Sequence[jax.Device]] = None) -> jax.Arr
     if devices is None:
         devices = jax.devices()
     sharding = jax.sharding.PositionalSharding(devices).replicate()
-    x = jax.tree_map(jnp.array, x)
-    return jax.tree_map(
+    x = jax.tree.map(jnp.array, x)
+    return jax.tree.map(
         lambda arr: jax.make_array_from_callback(
             arr.shape, sharding, lambda index: arr[index]
         ),

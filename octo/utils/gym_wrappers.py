@@ -281,7 +281,7 @@ class NormalizeProprio(gym.ObservationWrapper):
         env: gym.Env,
         action_proprio_metadata: dict,
     ):
-        self.action_proprio_metadata = jax.tree_map(
+        self.action_proprio_metadata = jax.tree.map(
             lambda x: np.array(x),
             action_proprio_metadata,
             is_leaf=lambda x: isinstance(x, list),

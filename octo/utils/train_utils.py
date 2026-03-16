@@ -147,7 +147,7 @@ def batched_apply(fn, batch_size):
         outputs = []
         for i in range(0, input_batch_size, batch_size):
             step_batch_size = min(batch_size, input_batch_size - i)
-            step_args, step_kwargs = jax.tree_map(
+            step_args, step_kwargs = jax.tree.map(
                 lambda arr: pad_to_size(arr[i : i + batch_size], batch_size),
                 (args, kwargs),
             )
@@ -157,12 +157,12 @@ def batched_apply(fn, batch_size):
             step_output = fn(*step_args, **step_kwargs)
             step_output = jax.device_get(jax_utils.split_along_axis(step_output))
             outputs.append(
-                jax.tree_map(
+                jax.tree.map(
                     lambda arr: arr[:step_batch_size],
                     step_output,
                 )
             )
-        return jax.tree_map(lambda *args: np.concatenate(args, axis=0), *outputs)
+        return jax.tree.map(lambda *args: np.concatenate(args, axis=0), *outputs)
 
     return wrapped_fn
 
@@ -271,12 +271,12 @@ def freeze_weights(
     )
     total_params = sum(
         jax.tree_util.tree_leaves(
-            jax.tree_map(lambda x: x.size, params_or_params_shape)
+            jax.tree.map(lambda x: x.size, params_or_params_shape)
         )
     )
     trainable_params = sum(
         jax.tree_util.tree_leaves(
-            jax.tree_map(
+            jax.tree.map(
                 lambda x, y: x.size if y == "trainable" else 0,
                 params_or_params_shape,
                 param_partitions,
@@ -333,7 +333,7 @@ def create_optimizer(
         tx, param_partitions = freeze_weights(
             tx, params_or_params_shape, frozen_keys, return_partitions=True
         )
-        zero_frozen_params = lambda params: jax.tree_map(
+        zero_frozen_params = lambda params: jax.tree.map(
             lambda x, y: x if y == "trainable" else jnp.zeros(()),
             params,
             param_partitions,

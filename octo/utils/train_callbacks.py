@@ -98,12 +98,12 @@ class SaveCallback(Callback):
 def remove_text(tasks: Data, zero_text_encoding: Optional[Data]):
     """Replaces language encoding inside task dict with that of the empty string.
 
-    zero_text_encoding = jax.tree_map(lambda x: x[0], text_processor.encode([""]))
+    zero_text_encoding = jax.tree.map(lambda x: x[0], text_processor.encode([""]))
     """
     if zero_text_encoding is None:
         zero_text_encoding = jnp.zeros((1,))
     if "language_instruction" in tasks:
-        new_language = jax.tree_map(
+        new_language = jax.tree.map(
             lambda x, example: jnp.broadcast_to(example[None], x.shape),
             tasks["language_instruction"],
             zero_text_encoding,
@@ -191,7 +191,7 @@ class ValidationCallback(Callback):
 
     def __post_init__(self):
         if self.text_processor is not None:
-            self.zero_text = jax.tree_map(
+            self.zero_text = jax.tree.map(
                 lambda x: x[0], self.text_processor.encode("")
             )
         else:
@@ -257,7 +257,7 @@ class ValidationCallback(Callback):
                 desc=name,
             ):
                 metrics.append(self.eval_step(train_state, batch))
-            metrics = jax.tree_map(lambda *xs: np.mean(xs), *metrics)
+            metrics = jax.tree.map(lambda *xs: np.mean(xs), *metrics)
             wandb_metrics[f"validation_{name}"] = metrics
         return wandb_metrics
 
@@ -276,7 +276,7 @@ class VisualizationCallback(Callback):
 
     def __post_init__(self):
         if self.text_processor is not None:
-            self.zero_text = jax.tree_map(
+            self.zero_text = jax.tree.map(
                 lambda x: x[0], self.text_processor.encode("")
             )
         else:
@@ -338,7 +338,7 @@ class RolloutVisualizationCallback(Callback):
 
     def __post_init__(self):
         if self.text_processor is not None:
-            self.zero_text = jax.tree_map(
+            self.zero_text = jax.tree.map(
                 lambda x: x[0], self.text_processor.encode("")
             )
         else:

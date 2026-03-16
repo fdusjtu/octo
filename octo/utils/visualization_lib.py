@@ -85,7 +85,7 @@ def run_policy_on_trajectory(policy_fn, traj, *, text_processor=None):
 
     tasks = {}
     tasks.update(
-        jax.tree_map(
+        jax.tree.map(
             lambda arr: np.tile(arr[-1][-1], (len_traj, *([1] * (arr.ndim - 2)))),
             traj["observation"],
         )
@@ -329,7 +329,7 @@ class RolloutVisualizer:
             while len(images) < self.max_episode_length:
                 # policy outputs are shape [batch, n_samples, pred_horizon, act_dim]
                 # we remove batch dimension & use first sampled action, ignoring other samples
-                actions = policy_fn(jax.tree_map(lambda x: x[None], obs), task)
+                actions = policy_fn(jax.tree.map(lambda x: x[None], obs), task)
                 actions = np.array(actions[0, 0])
                 obs, reward, done, trunc, info = self._env.step(actions)
                 if "observations" in info:
@@ -349,7 +349,7 @@ class RolloutVisualizer:
                 # concatenate all chunks into one dict of lists, then average across episode
                 metrics = listdict2dictlist(metrics)
                 rollout_info["episode_metrics"].append(
-                    jax.tree_map(lambda x: np.mean(x), metrics)
+                    jax.tree.map(lambda x: np.mean(x), metrics)
                 )
             if hasattr(self._env, "get_episode_metrics"):
                 if metrics:

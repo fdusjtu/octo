@@ -14,9 +14,13 @@ If you are running this on a head-less server, start a virtual display:
 To run this script, run:
     cd examples
     python3 03_eval_finetuned.py --finetuned_path=<path_to_finetuned_aloha_checkpoint>
+
+    默认场景：
+    python 03_eval_finetuned.py --finetuned_path=/home/cjt/octo/checkpoints/aloha_ckpts --task_name=sim_transfer_cube --seed=42
 """
 from functools import partial
 import sys
+import time
 
 from absl import app, flags, logging
 import gym
@@ -24,7 +28,7 @@ import jax
 import numpy as np
 import wandb
 
-sys.path.append("path/to/your/act")
+sys.path.append("/home/cjt/act")
 
 # keep this to register ALOHA sim env
 from envs.aloha_sim_env import AlohaGymEnv  # noqa
@@ -38,11 +42,29 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string(
     "finetuned_path", None, "Path to finetuned Octo checkpoint directory."
 )
+flags.DEFINE_enum(
+    "task_name",
+    "sim_transfer_cube",
+    ["sim_transfer_cube", "sim_insertion"],
+    "ALOHA simulation task to evaluate.",
+)
+flags.DEFINE_integer(
+    "seed",
+    None,
+    "Optional random seed for evaluation. If unset, uses the current time.",
+)
 
 
 def main(_):
+    seed = FLAGS.seed if FLAGS.seed is not None else int(time.time() * 1e6) % (2**31)
+    logging.info("Using evaluation seed: %d", seed)
+
     # setup wandb for logging
-    wandb.init(name="eval_aloha", project="octo")
+    wandb.init(
+        name=f"eval_aloha_{FLAGS.task_name}_seed{seed}",
+        project="octo",
+        config={"task_name": FLAGS.task_name, "seed": seed},
+    )
 
     # load finetuned model
     logging.info("Loading finetuned model...")
@@ -62,7 +84,12 @@ def main(_):
     #     }
     #   }
     ##################################################################################################################
-    env = gym.make("aloha-sim-cube-v0")
+    env_name = {
+        "sim_transfer_cube": "aloha-sim-cube-v0",
+        "sim_insertion": "aloha-sim-insertion-v0",
+    }[FLAGS.task_name]
+    env = gym.make(env_name)
+    env.unwrapped._rng = np.random.default_rng(seed)
 
     # wrap env to normalize proprio
     env = NormalizeProprio(env, model.dataset_statistics)
@@ -77,6 +104,7 @@ def main(_):
             model.sample_actions,
             unnormalization_statistics=model.dataset_statistics["action"],
         ),
+        rng=jax.random.PRNGKey(seed),
     )
 
     # running rollouts

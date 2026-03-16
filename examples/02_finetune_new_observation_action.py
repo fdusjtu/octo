@@ -5,6 +5,8 @@ and new action space (bimanual) using a simulated ALOHA cube handover dataset (h
 To run this example, first download and extract the dataset from here: https://rail.eecs.berkeley.edu/datasets/example_sim_data.zip
 
 python examples/02_finetune_new_observation_action.py --pretrained_path=hf://rail-berkeley/octo-small-1.5 --data_dir=...
+
+python 02_finetune_new_observation_action.py   --pretrained_path=/home/cjt/octo/models/octo-base-1.5   --data_dir=/home/cjt/octo/aloha_sim_dataset   --save_dir=/home/cjt/octo/checkpoints/aloha_ckpts   --batch_size=4   --num_steps=8000
 """
 from absl import app, flags, logging
 import flax
@@ -35,12 +37,53 @@ flags.DEFINE_string(
 flags.DEFINE_string("data_dir", None, "Path to finetuning dataset, in RLDS format.")
 flags.DEFINE_string("save_dir", None, "Directory for saving finetuning checkpoints.")
 flags.DEFINE_integer("batch_size", 128, "Batch size for finetuning.")
+flags.DEFINE_integer("num_steps", 4000, "Number of finetuning steps.")
+flags.DEFINE_integer(
+    "save_interval",
+    100,
+    "Save a checkpoint every N steps.",
+)
 
 flags.DEFINE_bool(
     "freeze_transformer",
     False,
     "Whether pre-trained transformer weights should be frozen.",
 )
+flags.DEFINE_bool(
+    "overwrite_save_dir",
+    True,
+    "Whether to delete existing step checkpoints in save_dir before training.",
+)
+flags.DEFINE_bool(
+    "save_best_only",
+    True,
+    "Whether to keep only the checkpoint with the lowest training loss.",
+)
+
+
+def _clear_existing_checkpoints(save_dir):
+    if not save_dir or not tf.io.gfile.exists(save_dir):
+        return
+
+    for entry in tf.io.gfile.listdir(save_dir):
+        full_path = tf.io.gfile.join(save_dir, entry)
+        if not tf.io.gfile.isdir(full_path):
+            continue
+        if entry.isdigit() or ".orbax-checkpoint-tmp-" in entry:
+            logging.info("Removing existing checkpoint directory: %s", full_path)
+            tf.io.gfile.rmtree(full_path)
+
+
+def _clear_step_checkpoints(save_dir):
+    if not save_dir or not tf.io.gfile.exists(save_dir):
+        return
+
+    for entry in tf.io.gfile.listdir(save_dir):
+        full_path = tf.io.gfile.join(save_dir, entry)
+        if not tf.io.gfile.isdir(full_path):
+            continue
+        if entry.isdigit() or ".orbax-checkpoint-tmp-" in entry:
+            tf.io.gfile.rmtree(full_path)
 
 
 def main(_):
@@ -51,6 +94,9 @@ def main(_):
     initialize_compilation_cache()
     # prevent tensorflow from using GPU memory since it's only used for data loading
     tf.config.set_visible_devices([], "GPU")
+
+    if FLAGS.save_dir and FLAGS.overwrite_save_dir:
+        _clear_existing_checkpoints(FLAGS.save_dir)
 
     # setup wandb for logging
     wandb.init(name="finetune_aloha", project="octo")
@@ -182,7 +228,11 @@ def main(_):
 
     # run finetuning loop
     logging.info("Starting finetuning...")
-    for i in tqdm.tqdm(range(5000), total=5000, dynamic_ncols=True):
+    best_loss = float("inf")
+    best_step = None
+    for i in tqdm.tqdm(
+        range(FLAGS.num_steps), total=FLAGS.num_steps, dynamic_ncols=True
+    ):
         batch = next(train_data_iter)
         train_state, update_info = train_step(train_state, batch)
         if (i + 1) % 100 == 0:
@@ -191,9 +241,28 @@ def main(_):
                 flax.traverse_util.flatten_dict({"training": update_info}, sep="/"),
                 step=i,
             )
-        if (i + 1) % 1000 == 0:
-            # save checkpoint
-            train_state.model.save_pretrained(step=i, checkpoint_path=FLAGS.save_dir)
+        if FLAGS.save_dir and (i + 1) % FLAGS.save_interval == 0:
+            current_loss = float(jax.device_get(update_info["loss"]))
+            if FLAGS.save_best_only:
+                if current_loss < best_loss:
+                    best_loss = current_loss
+                    best_step = i + 1
+                    _clear_step_checkpoints(FLAGS.save_dir)
+                    train_state.model.save_pretrained(
+                        step=i + 1, checkpoint_path=FLAGS.save_dir
+                    )
+                    logging.info(
+                        "Saved new best checkpoint at step %d with loss %.6f",
+                        i + 1,
+                        current_loss,
+                    )
+            else:
+                train_state.model.save_pretrained(
+                    step=i + 1, checkpoint_path=FLAGS.save_dir
+                )
+
+    if FLAGS.save_best_only and best_step is not None:
+        logging.info("Best checkpoint: step=%d loss=%.6f", best_step, best_loss)
 
 
 if __name__ == "__main__":

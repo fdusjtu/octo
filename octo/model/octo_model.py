@@ -296,12 +296,12 @@ class OctoModel:
         logging.debug(
             "Model was trained with observations: %s",
             flax.core.pretty_repr(
-                jax.tree_map(jnp.shape, example_batch["observation"])
+                jax.tree.map(jnp.shape, example_batch["observation"])
             ),
         )
         logging.debug(
             "Model was trained with tasks: %s",
-            flax.core.pretty_repr(jax.tree_map(jnp.shape, example_batch["task"])),
+            flax.core.pretty_repr(jax.tree.map(jnp.shape, example_batch["task"])),
         )
 
         # load dataset statistics
@@ -309,7 +309,7 @@ class OctoModel:
             tf.io.gfile.join(checkpoint_path, "dataset_statistics.json"), "r"
         ) as f:
             dataset_statistics = json.load(f)
-            dataset_statistics = jax.tree_map(
+            dataset_statistics = jax.tree.map(
                 np.array, dataset_statistics, is_leaf=lambda x: not isinstance(x, dict)
             )
 
@@ -389,28 +389,25 @@ class OctoModel:
         if jax.process_index() == 0:
             # save config
             config_path = tf.io.gfile.join(checkpoint_path, "config.json")
-            if not tf.io.gfile.exists(config_path):
-                with tf.io.gfile.GFile(config_path, "w") as f:
-                    json.dump(self.config, f)
+            with tf.io.gfile.GFile(config_path, "w") as f:
+                json.dump(self.config, f)
 
             # save example batch
             example_batch_path = tf.io.gfile.join(
                 checkpoint_path, "example_batch.msgpack"
             )
-            if not tf.io.gfile.exists(example_batch_path):
-                with tf.io.gfile.GFile(example_batch_path, "wb") as f:
-                    f.write(flax.serialization.msgpack_serialize(self.example_batch))
+            with tf.io.gfile.GFile(example_batch_path, "wb") as f:
+                f.write(flax.serialization.msgpack_serialize(self.example_batch))
 
             # save dataset statistics
             dataset_statistics_path = tf.io.gfile.join(
                 checkpoint_path, "dataset_statistics.json"
             )
-            if not tf.io.gfile.exists(dataset_statistics_path):
-                with tf.io.gfile.GFile(dataset_statistics_path, "w") as f:
-                    json.dump(
-                        jax.tree_map(lambda x: x.tolist(), self.dataset_statistics),
-                        f,
-                    )
+            with tf.io.gfile.GFile(dataset_statistics_path, "w") as f:
+                json.dump(
+                    jax.tree.map(lambda x: x.tolist(), self.dataset_statistics),
+                    f,
+                )
 
     @classmethod
     def from_config(
@@ -436,7 +433,7 @@ class OctoModel:
         module = OctoModule.create(**config["model"])
         rng = rng if rng is not None else jax.random.PRNGKey(0)
         example_batch = multihost_utils.process_allgather(example_batch)
-        example_batch = jax.tree_map(lambda x: x[:1], example_batch)
+        example_batch = jax.tree.map(lambda x: x[:1], example_batch)
 
         init_args = (
             example_batch["observation"],
@@ -480,7 +477,7 @@ class OctoModel:
             if k.startswith("image")
         }
         if self.text_processor is not None:
-            task_space["language_instruction"] = jax.tree_map(
+            task_space["language_instruction"] = jax.tree.map(
                 lambda arr: ("batch", *arr.shape[1:]),
                 self.example_batch["task"]["language_instruction"],
             )

@@ -128,7 +128,7 @@ class OctoTransformer(nn.Module):
         batch_size, horizon = jax.tree_util.tree_leaves(observations)[0].shape[:2]
         assert horizon <= self.max_horizon, "horizon must be <= max_horizon"
         assert jax.tree_util.tree_all(
-            jax.tree_map(lambda x: x.shape[1] == horizon, observations)
+            jax.tree.map(lambda x: x.shape[1] == horizon, observations)
         ), "observations must have the same horizon"
 
         #

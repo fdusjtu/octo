@@ -17,6 +17,7 @@ class AlohaGymEnv(gym.Env):
         camera_names: List[str],
         im_size: int = 256,
         seed: int = 1234,
+        task_name: str = "sim_transfer_cube",
     ):
         self._env = env
         self.observation_space = gym.spaces.Dict(
@@ -40,6 +41,7 @@ class AlohaGymEnv(gym.Env):
         self.camera_names = camera_names
         self._im_size = im_size
         self._rng = np.random.default_rng(seed)
+        self._task_name = task_name
 
     def step(self, action):
         ts = self._env.step(action)
@@ -53,14 +55,27 @@ class AlohaGymEnv(gym.Env):
         return obs, reward, False, False, info
 
     def reset(self, **kwargs):
-        # sample new box pose
-        x_range = [0.0, 0.2]
-        y_range = [0.4, 0.6]
-        z_range = [0.05, 0.05]
-        ranges = np.vstack([x_range, y_range, z_range])
-        cube_position = self._rng.uniform(ranges[:, 0], ranges[:, 1])
-        cube_quat = np.array([1, 0, 0, 0])
-        BOX_POSE[0] = np.concatenate([cube_position, cube_quat])
+        if self._task_name == "sim_transfer_cube":
+            x_range = [0.0, 0.2]
+            y_range = [0.4, 0.6]
+            z_range = [0.05, 0.05]
+            ranges = np.vstack([x_range, y_range, z_range])
+            cube_position = self._rng.uniform(ranges[:, 0], ranges[:, 1])
+            cube_quat = np.array([1, 0, 0, 0])
+            BOX_POSE[0] = np.concatenate([cube_position, cube_quat])
+        elif self._task_name == "sim_insertion":
+            peg_ranges = np.vstack([[0.1, 0.2], [0.4, 0.6], [0.05, 0.05]])
+            peg_position = self._rng.uniform(peg_ranges[:, 0], peg_ranges[:, 1])
+            peg_pose = np.concatenate([peg_position, np.array([1, 0, 0, 0])])
+
+            socket_ranges = np.vstack([[-0.2, -0.1], [0.4, 0.6], [0.05, 0.05]])
+            socket_position = self._rng.uniform(
+                socket_ranges[:, 0], socket_ranges[:, 1]
+            )
+            socket_pose = np.concatenate([socket_position, np.array([1, 0, 0, 0])])
+            BOX_POSE[0] = np.concatenate([peg_pose, socket_pose])
+        else:
+            raise ValueError(f"Unsupported task: {self._task_name}")
 
         ts = self._env.reset(**kwargs)
         obs, images = self.get_obs(ts)
@@ -90,8 +105,12 @@ class AlohaGymEnv(gym.Env):
         return curr_obs, np.concatenate(vis_images, axis=-2)
 
     def get_task(self):
+        if self._task_name == "sim_insertion":
+            instruction = "insert the peg into the socket"
+        else:
+            instruction = "pick up the cube and hand it over"
         return {
-            "language_instruction": ["pick up the cube and hand it over"],
+            "language_instruction": [instruction],
         }
 
     def get_episode_metrics(self):
@@ -104,6 +123,17 @@ class AlohaGymEnv(gym.Env):
 gym.register(
     "aloha-sim-cube-v0",
     entry_point=lambda: AlohaGymEnv(
-        make_sim_env("sim_transfer_cube"), camera_names=["top"]
+        make_sim_env("sim_transfer_cube"),
+        camera_names=["top"],
+        task_name="sim_transfer_cube",
+    )
+)
+
+gym.register(
+    "aloha-sim-insertion-v0",
+    entry_point=lambda: AlohaGymEnv(
+        make_sim_env("sim_insertion"),
+        camera_names=["top"],
+        task_name="sim_insertion",
     ),
 )
