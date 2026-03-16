@@ -126,7 +126,7 @@ gym.register(
         make_sim_env("sim_transfer_cube"),
         camera_names=["top"],
         task_name="sim_transfer_cube",
-    )
+    ),
 )
 
 gym.register(

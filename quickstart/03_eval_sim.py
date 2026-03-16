@@ -23,43 +23,48 @@ import os
 import sys
 
 # ── scipy / jax 兼容性补丁（必须在所有其他 import 之前）────────────────────────
-import scipy.linalg as _sl
 import numpy as _np
-if not hasattr(_sl, 'tril'):
+import scipy.linalg as _sl
+
+if not hasattr(_sl, "tril"):
     _sl.tril = _np.tril
-if not hasattr(_sl, 'triu'):
+if not hasattr(_sl, "triu"):
     _sl.triu = _np.triu
 
 import jax
 import jax.tree_util as _jtu
-if not hasattr(jax, 'tree'):
+
+if not hasattr(jax, "tree"):
+
     class _TreeShim:
         def __getattr__(self, name):
-            fn = getattr(_jtu, 'tree_' + name, None) or getattr(_jtu, name)
+            fn = getattr(_jtu, "tree_" + name, None) or getattr(_jtu, name)
             return fn
+
     jax.tree = _TreeShim()
 
-os.environ.setdefault('XLA_PYTHON_CLIENT_PREALLOCATE', 'false')
-os.environ.setdefault('TRANSFORMERS_OFFLINE', '1')
-os.environ.setdefault('HF_HUB_OFFLINE', '1')
+os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
 from absl import app, flags, logging
 import gym
+import imageio
 import matplotlib
-matplotlib.use('TkAgg' if 'DISPLAY' in os.environ else 'Agg')
+
+matplotlib.use("TkAgg" if "DISPLAY" in os.environ else "Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-import imageio
 
 sys.path.append("/home/cjt/act")
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'examples'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "examples"))
 
 # keep this to register ALOHA sim env
 from envs.aloha_sim_env import AlohaGymEnv  # noqa
 
-sys.path.insert(0, os.path.expanduser('~/octo'))
+sys.path.insert(0, os.path.expanduser("~/octo"))
 from octo.model.octo_model import OctoModel
-from octo.utils.gym_wrappers import HistoryWrapper, NormalizeProprio, RHCWrapper
+from octo.utils.gym_wrappers import HistoryWrapper, RHCWrapper
 from octo.utils.train_callbacks import supply_rng
 
 FLAGS = flags.FLAGS
@@ -111,11 +116,11 @@ def main(_):
     )
 
     # 设置 matplotlib 实时显示（有 DISPLAY 才弹窗，否则只保存视频）
-    has_display = 'DISPLAY' in os.environ
+    has_display = "DISPLAY" in os.environ
     if has_display:
         plt.ion()
     fig, ax = plt.subplots(figsize=(6, 6))
-    ax.axis('off')
+    ax.axis("off")
     plt_img = None
 
     # run 3 episodes
@@ -133,17 +138,19 @@ def main(_):
             plt_img = ax.imshow(images[0])
         else:
             plt_img.set_data(images[0])
-        ax.set_title(f'Episode {ep} | Step 0 | Return: 0.00')
+        ax.set_title(f"Episode {ep} | Step 0 | Return: 0.00")
         if has_display:
             plt.pause(0.001)
 
         while len(images) < 400:
             # 去掉 proprio（octo-base 不认识该键），只保留图像输入
-            obs_for_model = {k: v for k, v in obs.items() if k != 'proprio'}
-            actions = policy_fn(jax.tree_util.tree_map(lambda x: x[None], obs_for_model), task)
-            logging.info(f'raw actions shape: {np.array(actions).shape}')
+            obs_for_model = {k: v for k, v in obs.items() if k != "proprio"}
+            actions = policy_fn(
+                jax.tree_util.tree_map(lambda x: x[None], obs_for_model), task
+            )
+            logging.info(f"raw actions shape: {np.array(actions).shape}")
             actions = np.array(actions[0])  # (action_horizon, action_dim) e.g. (4, 7)
-            logging.info(f'actions[0] shape: {actions.shape}')
+            logging.info(f"actions[0] shape: {actions.shape}")
 
             # ALOHA 环境需要 14-DoF 动作，octo-base 输出 7-DoF
             # 将 7-DoF 复制为左右臂各一份（仅用于演示，不保证语义正确）
@@ -152,7 +159,7 @@ def main(_):
                 actions = actions[None]  # (1, 7)
             if actions.shape[-1] != 14:
                 actions = np.concatenate([actions, actions], axis=-1)  # (N, 14)
-            logging.info(f'final actions shape: {actions.shape}')
+            logging.info(f"final actions shape: {actions.shape}")
 
             obs, reward, done, trunc, info = env.step(actions)
             new_imgs = [o["image_primary"][0] for o in info["observations"]]
@@ -161,7 +168,9 @@ def main(_):
 
             # 实时更新画面（显示最新帧）
             plt_img.set_data(new_imgs[-1])
-            ax.set_title(f'Episode {ep} | Step {len(images)} | Return: {episode_return:.2f}')
+            ax.set_title(
+                f"Episode {ep} | Step {len(images)} | Return: {episode_return:.2f}"
+            )
             if has_display:
                 plt.pause(0.001)
 

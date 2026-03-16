@@ -4,7 +4,6 @@ from types import SimpleNamespace
 
 import jax
 
-
 # JAX removed/shifted some tree helpers across versions. Keep the older API
 # surface that this repo uses so examples and scripts remain runnable.
 if not hasattr(jax, "tree"):
